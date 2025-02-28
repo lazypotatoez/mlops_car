@@ -3,7 +3,7 @@ import pickle
 import pandas as pd
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="../templates")
 
 # Load the trained model
 model_path = "artifacts/used_car_price_model.pkl"
