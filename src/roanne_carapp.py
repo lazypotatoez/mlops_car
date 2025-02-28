@@ -6,9 +6,9 @@ import os
 app = Flask(__name__)
 
 # Load the trained model
-MODEL_PATH = os.path.join("artifacts", "used_car_price_model.pkl")
+model_path = "artifacts/used_car_price_model.pkl"
 
-with open(MODEL_PATH, "rb") as file:
+with open(model_path, "rb") as file:
     model = pickle.load(file)
 
 # Define route for homepage
