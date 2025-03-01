@@ -8,9 +8,11 @@ import pickle
 import hydra
 from omegaconf import DictConfig
 
+app = Flask(__name__)  # Define app at module level
+
 @hydra.main(version_base=None, config_path=".", config_name="car")
 def main(cfg: DictConfig):
-    app = Flask(__name__, template_folder=cfg.app.template_folder)
+    global app  # Use global app for Gunicorn to recognize it
 
     # Ensure joblib does not cache to restricted directories
     os.environ["JOBLIB_TEMP_FOLDER"] = "/tmp"
@@ -96,8 +98,6 @@ def main(cfg: DictConfig):
             import traceback
             print(traceback.format_exc())
             return jsonify({"error": str(e)})
-
-    app.run(debug=cfg.app.debug, host=cfg.app.host, port=cfg.app.port)
 
 if __name__ == '__main__':
     main()
