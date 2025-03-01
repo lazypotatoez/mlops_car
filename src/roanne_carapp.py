@@ -1,138 +1,87 @@
-from flask import Flask, render_template, request, jsonify, send_file
-import pandas as pd
-import os
-import joblib
-import numpy as np
-from sklearn.preprocessing import OneHotEncoder
-import pickle
-import hydra
-from omegaconf import DictConfig
-from hydra.core.global_hydra import GlobalHydra
-import io
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Used Car Price Prediction</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <h2 class="text-center">Used Car Price Prediction</h2>
+        
+        <form action="/predict" method="post" class="mt-4">
+            <div class="mb-3">
+                <label for="brand_model" class="form-label">Brand and Model:</label>
+                <input type="text" class="form-control" id="brand_model" name="brand_model" required>
+            </div>
+            <div class="mb-3">
+                <label for="location" class="form-label">Location:</label>
+                <input type="text" class="form-control" id="location" name="location" required>
+            </div>
+            <div class="mb-3">
+                <label for="year" class="form-label">Year:</label>
+                <input type="number" class="form-control" id="year" name="year" required>
+            </div>
+            <div class="mb-3">
+                <label for="kilometers_driven" class="form-label">Kilometers Driven:</label>
+                <input type="number" class="form-control" id="kilometers_driven" name="kilometers_driven" required>
+            </div>
+            <div class="mb-3">
+                <label for="fuel_type" class="form-label">Fuel Type:</label>
+                <select class="form-control" id="fuel_type" name="fuel_type" required>
+                    <option value="">Select Fuel Type</option>
+                    <option value="Petrol">Petrol</option>
+                    <option value="Diesel">Diesel</option>
+                    <option value="CNG">CNG</option>
+                    <option value="LPG">LPG</option>
+                    <option value="Electric">Electric</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="transmission" class="form-label">Transmission:</label>
+                <select class="form-control" id="transmission" name="transmission" required>
+                    <option value="">Select Transmission</option>
+                    <option value="Manual">Manual</option>
+                    <option value="Automatic">Automatic</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="owner_type" class="form-label">Owner Type:</label>
+                <select class="form-control" id="owner_type" name="owner_type" required>
+                    <option value="">Select Owner Type</option>
+                    <option value="First">First</option>
+                    <option value="Second">Second</option>
+                    <option value="Third">Third</option>
+                    <option value="Fourth">Fourth</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="mileage" class="form-label">Mileage (kmpl):</label>
+                <input type="number" step="0.1" class="form-control" id="mileage" name="mileage" required>
+            </div>
+            <div class="mb-3">
+                <label for="engine" class="form-label">Engine (CC):</label>
+                <input type="number" class="form-control" id="engine" name="engine" required>
+            </div>
+            <div class="mb-3">
+                <label for="power" class="form-label">Power (bhp):</label>
+                <input type="number" step="0.1" class="form-control" id="power" name="power" required>
+            </div>
+            <div class="mb-3">
+                <label for="seats" class="form-label">Seats:</label>
+                <input type="number" class="form-control" id="seats" name="seats" required>
+            </div>
+            <button type="submit" class="btn btn-success">Predict Price</button>
+        </form>
 
-app = Flask(__name__, template_folder="../templates")
+        <!-- ✅ Display Predicted Price -->
+        {% if predicted_price is not none %}
+        <div class="alert alert-success mt-3">
+            <h4>Predicted Price: ₹{{ predicted_price }} Lakhs</h4>
+        </div>
+        {% endif %}
 
-# Ensure joblib does not cache to restricted directories
-os.environ["JOBLIB_TEMP_FOLDER"] = "/tmp"
-
-# ✅ FIX: Set Hydra to look in the correct config folder
-if not GlobalHydra.instance().is_initialized():
-    hydra.initialize(config_path="../config", version_base=None)
-
-cfg = hydra.compose(config_name="car")
-
-# Load model
-try:
-    model = joblib.load(cfg.model.path)
-    print("Model loaded successfully")
-except Exception as e:
-    print(f"Model loading failed: {e}")
-    try:
-        with open(cfg.model.fallback_path, 'rb') as f:
-            model = pickle.load(f)
-        print("Model loaded with pickle successfully")
-    except Exception as e2:
-        print(f"Pickle loading failed: {e2}")
-        model = joblib.load("artifacts/used_car_price_model.pkl")
-        print("Model loaded from root directory")
-
-# Create encoders for categorical variables
-categorical_columns = cfg.encoding.categorical_columns
-encoders = {col: OneHotEncoder(sparse=False, handle_unknown='ignore') for col in categorical_columns}
-
-# Fit encoders with common values
-for col in categorical_columns:
-    sample_data = pd.DataFrame({col: cfg.encoding.common_values[col]})
-    encoders[col].fit(sample_data)
-
-@app.route('/')
-def home():
-    return render_template('roanne_car.html', predicted_price=None)
-
-@app.route('/predict', methods=['POST'])
-def predict():
-    try:
-        user_input = {
-            "Brand_Model": request.form['brand_model'],
-            "Location": request.form['location'],
-            "Year": int(request.form['year']),
-            "Kilometers_Driven": float(request.form['kilometers_driven']),
-            "Fuel_Type": request.form['fuel_type'],
-            "Transmission": request.form['transmission'],
-            "Owner_Type": request.form['owner_type'],
-            "Mileage": float(request.form['mileage']),
-            "Engine": float(request.form['engine']),
-            "Power": float(request.form['power']),
-            "Seats": int(request.form['seats'])
-        }
-
-        df = pd.DataFrame([user_input])
-
-        # Prediction Logic
-        base_value = 15.0  # Base value in lakhs
-        year_factor = (df["Year"][0] - 2010) * 0.5
-        mileage_discount = df["Kilometers_Driven"][0] / 10000 * 0.2
-        prediction = base_value + year_factor - mileage_discount
-        prediction = max(prediction, 1.0)
-
-        return render_template("roanne_car.html", predicted_price=round(prediction, 2))
-
-    except Exception as e:
-        import traceback
-        print(traceback.format_exc())
-        return render_template("roanne_car.html", predicted_price="Error occurred")
-
-@app.route('/batch_predict', methods=['POST'])
-def batch_predict():
-    try:
-        if 'file' not in request.files:
-            return jsonify({"error": "No file uploaded"}), 400
-
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({"error": "No selected file"}), 400
-
-        df = pd.read_csv(file)
-
-        # Remove 'Price' column if it exists
-        if 'Price (INR Lakhs)' in df.columns:
-            df = df.drop(columns=['Price (INR Lakhs)'])
-
-        # Ensure required columns are present
-        required_columns = ["Brand_Model", "Location", "Year", "Kilometers_Driven", "Fuel_Type", "Transmission", "Owner_Type", "Mileage", "Engine", "Power", "Seats"]
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        if missing_columns:
-            return jsonify({"error": f"Missing columns: {missing_columns}"}), 400
-
-        for col in categorical_columns:
-            df[col] = encoders[col].transform(df[[col]])
-
-        # Prediction Logic
-        df["Predicted Price (INR Lakhs)"] = (
-            15.0 + (df["Year"] - 2010) * 0.5 - (df["Kilometers_Driven"] / 10000 * 0.2)
-        )
-        df["Predicted Price (INR Lakhs)"] = df["Predicted Price (INR Lakhs)"].clip(lower=1.0)
-
-        for col in categorical_columns:
-            try:
-                df[col] = encoders[col].inverse_transform(df[encoders[col].get_feature_names_out([col])])
-                df.drop(columns=encoders[col].get_feature_names_out([col]), inplace=True)
-            except Exception as e:
-                print(f"Error decoding {col}: {e}")
-
-        output = io.StringIO()
-        df.to_csv(output, index=False)
-        output.seek(0)
-
-        return send_file(io.BytesIO(output.getvalue().encode()), 
-                         mimetype="text/csv", 
-                         as_attachment=True, 
-                         download_name="predictions.csv")
-
-    except Exception as e:
-        import traceback
-        print(traceback.format_exc())
-        return jsonify({"error": str(e)}), 500
-
-if __name__ == '__main__':
-    app.run(debug=cfg.app.debug, host=cfg.app.host, port=cfg.app.port)
+    </div>
+</body>
+</html>
