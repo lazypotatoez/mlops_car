@@ -69,28 +69,13 @@ def predict():
         df = pd.DataFrame([user_input])
 
         # Encode categorical features
-        encoded_features = {}
         for col in categorical_columns:
-            cat_value = df[[col]]
-            encoded = encoders[col].transform(cat_value)
-            feature_names = encoders[col].get_feature_names_out([col]) if hasattr(encoders[col], 'get_feature_names_out') else [f"{col}_{val}" for val in encoders[col].categories_[0]]
-            for i, name in enumerate(feature_names):
-                encoded_features[name] = encoded[0][i]
+            df[col] = encoders[col].transform(df[[col]])
 
-        # Prepare numerical features
-        numerical_features = {
-            "Year": user_input["Year"],
-            "Kilometers_Driven": user_input["Kilometers_Driven"],
-            "Mileage": user_input["Mileage"],
-            "Engine": user_input["Engine"],
-            "Power": user_input["Power"],
-            "Seats": user_input["Seats"]
-        }
-
-        # Simple prediction logic (as a fallback)
+        # Prediction Logic
         base_value = 15.0  # Base value in lakhs
-        year_factor = (user_input["Year"] - 2010) * 0.5
-        mileage_discount = user_input["Kilometers_Driven"] / 10000 * 0.2
+        year_factor = (df["Year"][0] - 2010) * 0.5
+        mileage_discount = df["Kilometers_Driven"][0] / 10000 * 0.2
         prediction = base_value + year_factor - mileage_discount
         prediction = max(prediction, 1.0)
 
@@ -101,7 +86,7 @@ def predict():
         print(traceback.format_exc())
         return jsonify({"error": str(e)})
 
-# ✅ NEW: Batch Prediction API with Decoded Categorical Columns
+# Batch Prediction API (Returns a Downloadable CSV)
 @app.route('/batch_predict', methods=['POST'])
 def batch_predict():
     try:
@@ -112,13 +97,14 @@ def batch_predict():
         if file.filename == '':
             return jsonify({"error": "No selected file"}), 400
 
+        # Read CSV file
         df = pd.read_csv(file)
 
-        # Remove 'price' column if it exists
+        # Remove 'Price (INR Lakhs)' column if it exists
         if 'Price (INR Lakhs)' in df.columns:
             df = df.drop(columns=['Price (INR Lakhs)'])
 
-        # Ensure required columns exist
+        # Ensure required columns are present
         required_columns = ["Brand_Model", "Location", "Year", "Kilometers_Driven", "Fuel_Type", "Transmission", "Owner_Type", "Mileage", "Engine", "Power", "Seats"]
         missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns:
@@ -135,13 +121,15 @@ def batch_predict():
         )
         df["Predicted Price (INR Lakhs)"] = df["Predicted Price (INR Lakhs)"].clip(lower=1.0)
 
-        # ✅ Reverse One-Hot Encoding to Restore Original Categories
+        # Convert Encoded Columns Back to Original Categories
         for col in categorical_columns:
-            category_names = encoders[col].categories_[0]
-            df[col] = encoders[col].inverse_transform(df[encoders[col].get_feature_names_out([col])])
-            df.drop(columns=encoders[col].get_feature_names_out([col]), inplace=True)  # Remove one-hot columns
+            try:
+                df[col] = encoders[col].inverse_transform(df[encoders[col].get_feature_names_out([col])])
+                df.drop(columns=encoders[col].get_feature_names_out([col]), inplace=True)  # Remove one-hot columns
+            except Exception as e:
+                print(f"Error decoding {col}: {e}")  # Debugging message
 
-        # Convert DataFrame to CSV
+        # Ensure CSV is Sent as a File (Not JSON)
         output = io.StringIO()
         df.to_csv(output, index=False)
         output.seek(0)
@@ -154,7 +142,7 @@ def batch_predict():
     except Exception as e:
         import traceback
         print(traceback.format_exc())
-        return jsonify({"error": str(e)})
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=cfg.app.debug, host=cfg.app.host, port=cfg.app.port)
