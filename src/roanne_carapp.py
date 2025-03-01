@@ -27,13 +27,6 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
-        # Validate form input fields
-        required_fields = ["brand_model", "location", "year", "kilometers_driven", "fuel_type", "transmission", "owner_type", "mileage", "engine", "power", "seats"]
-        missing_fields = [field for field in required_fields if field not in request.form or request.form[field] == ""]
-        if missing_fields:
-            return render_template("roanne_car.html", predicted_price=f"Error: Missing fields - {', '.join(missing_fields)}")
-
-        # Extract user input
         user_input = {
             "Brand_Model": request.form['brand_model'],
             "Location": request.form['location'],
@@ -50,19 +43,21 @@ def predict():
 
         df = pd.DataFrame([user_input])
 
-        # Simple price prediction logic
-        base_value = 15.0
+        # Prediction Logic
+        base_value = 15.0  # Base value in lakhs
         year_factor = (df["Year"][0] - 2010) * 0.5
         mileage_discount = df["Kilometers_Driven"][0] / 10000 * 0.2
         prediction = base_value + year_factor - mileage_discount
         prediction = max(prediction, 1.0)
 
+        # ✅ Return the prediction in the HTML page instead of JSON
         return render_template("roanne_car.html", predicted_price=round(prediction, 2))
 
     except Exception as e:
         import traceback
         print(traceback.format_exc())
-        return render_template("roanne_car.html", predicted_price="Internal Server Error - Check logs.")
+        return render_template("roanne_car.html", predicted_price="Error occurred")
+
 
 
 @app.route('/batch_predict', methods=['POST'])
