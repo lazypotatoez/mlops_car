@@ -75,10 +75,17 @@
             <button type="submit" class="btn btn-success">Predict Price</button>
         </form>
 
-        <!-- ✅ Display Predicted Price Below the Button -->
+        <!-- Display Predicted Price Below the Button -->
         {% if predicted_price is not none %}
         <div class="alert alert-success mt-3">
             <h4>Predicted Price: ₹{{ predicted_price }} Lakhs</h4>
+        </div>
+        {% endif %}
+        
+        <!-- Display Error Message if any -->
+        {% if error is not none %}
+        <div class="alert alert-danger mt-3">
+            <h4>Error: {{ error }}</h4>
         </div>
         {% endif %}
 
@@ -87,8 +94,10 @@
         <!-- Batch Prediction Form -->
         <h4>Upload CSV for Batch Prediction</h4>
         <form action="/batch_predict" method="post" enctype="multipart/form-data">
-            <input type="file" name="file" required>
-            <button type="submit" class="btn btn-primary">Upload & Predict</button>
+            <div class="input-group mb-3">
+                <input type="file" class="form-control" name="file" required>
+                <button type="submit" class="btn btn-primary">Upload & Predict</button>
+            </div>
         </form>
 
     </div>
