@@ -6,3 +6,4 @@ pycaret==3.0.0
 joblib==1.2.0
 scipy==1.9.3
 scikit-plot==0.3.7
+hydra-core
