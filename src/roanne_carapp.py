@@ -27,10 +27,19 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
+        # Create a dictionary with all required features
         features = {
-            "Mileage": float(request.form['mileage']),
-            "Year": int(request.form['year']),
-            "Brand": request.form['brand'],
+            "Brand_Model": request.form['brand_model'],
+            "Location": request.form['location'],
+            "Kilometers_Driven": float(request.form['kilometers_driven']),
+            "Fuel_Type": request.form['fuel_type'],
+            "Transmission": request.form['transmission'],
+            "Owner_Type": request.form['owner_type'],
+            "Engine": float(request.form['engine']),
+            "Power": float(request.form['power']),
+            "Seats": int(request.form['seats']),
+            # You can add Year if the model uses it
+            "Year": int(request.form['year']) if 'year' in request.form else 0
         }
 
         df = pd.DataFrame([features])
