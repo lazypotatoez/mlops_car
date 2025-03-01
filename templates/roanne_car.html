@@ -4,20 +4,145 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Used Car Price Prediction</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            cursor: pointer;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            display: none;
+        }
+    </style>
 </head>
 <body>
     <h2>Used Car Price Prediction</h2>
-    <form action="/predict" method="post">
-        <label for="mileage">Mileage:</label>
-        <input type="text" name="mileage" required><br>
+    <form id="predictionForm">
+        <div class="form-group">
+            <label for="brand_model">Brand and Model:</label>
+            <input type="text" id="brand_model" name="brand_model" required placeholder="e.g., Maruti Swift Dzire VDI">
+        </div>
 
-        <label for="year">Year:</label>
-        <input type="text" name="year" required><br>
+        <div class="form-group">
+            <label for="location">Location:</label>
+            <input type="text" id="location" name="location" required placeholder="e.g., Mumbai">
+        </div>
 
-        <label for="brand">Brand:</label>
-        <input type="text" name="brand" required><br>
+        <div class="form-group">
+            <label for="kilometers_driven">Kilometers Driven:</label>
+            <input type="number" id="kilometers_driven" name="kilometers_driven" required>
+        </div>
+
+        <div class="form-group">
+            <label for="year">Year:</label>
+            <input type="number" id="year" name="year" required>
+        </div>
+
+        <div class="form-group">
+            <label for="fuel_type">Fuel Type:</label>
+            <select id="fuel_type" name="fuel_type" required>
+                <option value="">Select Fuel Type</option>
+                <option value="Petrol">Petrol</option>
+                <option value="Diesel">Diesel</option>
+                <option value="CNG">CNG</option>
+                <option value="LPG">LPG</option>
+                <option value="Electric">Electric</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="transmission">Transmission:</label>
+            <select id="transmission" name="transmission" required>
+                <option value="">Select Transmission</option>
+                <option value="Manual">Manual</option>
+                <option value="Automatic">Automatic</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="owner_type">Owner Type:</label>
+            <select id="owner_type" name="owner_type" required>
+                <option value="">Select Owner Type</option>
+                <option value="First">First Owner</option>
+                <option value="Second">Second Owner</option>
+                <option value="Third">Third Owner</option>
+                <option value="Fourth">Fourth & Above Owner</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="engine">Engine (CC):</label>
+            <input type="number" id="engine" name="engine" required>
+        </div>
+
+        <div class="form-group">
+            <label for="power">Power (bhp):</label>
+            <input type="number" id="power" name="power" step="0.1" required>
+        </div>
+
+        <div class="form-group">
+            <label for="seats">Seats:</label>
+            <input type="number" id="seats" name="seats" min="1" max="10" required>
+        </div>
 
         <button type="submit">Predict Price</button>
     </form>
+
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('predictionForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Get form data
+            const formData = new FormData(this);
+            
+            // Send prediction request
+            fetch('/predict', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                const resultDiv = document.getElementById('result');
+                resultDiv.style.display = 'block';
+                
+                if (data.error) {
+                    resultDiv.innerHTML = `<p>Error: ${data.error}</p>`;
+                } else {
+                    resultDiv.innerHTML = `<p>Predicted Price: ₹${data["Predicted Price (INR Lakhs)"]} Lakhs</p>`;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('result').innerHTML = '<p>An error occurred during prediction.</p>';
+                document.getElementById('result').style.display = 'block';
+            });
+        });
+    </script>
 </body>
 </html>
