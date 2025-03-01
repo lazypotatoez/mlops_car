@@ -86,7 +86,7 @@ def predict():
         print(traceback.format_exc())
         return jsonify({"error": str(e)})
 
-# Batch Prediction API (Returns a Downloadable CSV)
+#  Corrected Batch Prediction API (Now Returns Original Categories Instead of 0/1)
 @app.route('/batch_predict', methods=['POST'])
 def batch_predict():
     try:
@@ -111,9 +111,14 @@ def batch_predict():
             return jsonify({"error": f"Missing columns: {missing_columns}"}), 400
 
         # Encode categorical features
+        one_hot_encoded_cols = {}  # Dictionary to store column names before encoding
         for col in categorical_columns:
             if col in df.columns:
-                df[col] = encoders[col].transform(df[[col]])
+                transformed = encoders[col].transform(df[[col]])
+                feature_names = encoders[col].get_feature_names_out([col])
+                df = df.drop(columns=[col])  # Remove original column
+                df = pd.concat([df, pd.DataFrame(transformed, columns=feature_names)], axis=1)
+                one_hot_encoded_cols[col] = feature_names  # Store the mapping
 
         # Prediction Logic
         df["Predicted Price (INR Lakhs)"] = (
@@ -122,10 +127,10 @@ def batch_predict():
         df["Predicted Price (INR Lakhs)"] = df["Predicted Price (INR Lakhs)"].clip(lower=1.0)
 
         # Convert Encoded Columns Back to Original Categories
-        for col in categorical_columns:
+        for col, feature_names in one_hot_encoded_cols.items():
             try:
-                df[col] = encoders[col].inverse_transform(df[encoders[col].get_feature_names_out([col])])
-                df.drop(columns=encoders[col].get_feature_names_out([col]), inplace=True)  # Remove one-hot columns
+                df[col] = encoders[col].inverse_transform(df[feature_names])
+                df.drop(columns=feature_names, inplace=True)  # Remove one-hot encoded columns
             except Exception as e:
                 print(f"Error decoding {col}: {e}")  # Debugging message
 
