@@ -101,11 +101,10 @@ def predict():
         print(traceback.format_exc())
         return jsonify({"error": str(e)})
 
-# ✅ NEW: Batch Prediction API
+# ✅ NEW: Batch Prediction API with Decoded Categorical Columns
 @app.route('/batch_predict', methods=['POST'])
 def batch_predict():
     try:
-        # Check if a file was uploaded
         if 'file' not in request.files:
             return jsonify({"error": "No file uploaded"}), 400
 
@@ -113,14 +112,13 @@ def batch_predict():
         if file.filename == '':
             return jsonify({"error": "No selected file"}), 400
 
-        # Read the uploaded CSV
         df = pd.read_csv(file)
 
         # Remove 'price' column if it exists
-        if 'price' in df.columns:
-            df = df.drop(columns=['price'])
+        if 'Price (INR Lakhs)' in df.columns:
+            df = df.drop(columns=['Price (INR Lakhs)'])
 
-        # Check if required columns exist
+        # Ensure required columns exist
         required_columns = ["Brand_Model", "Location", "Year", "Kilometers_Driven", "Fuel_Type", "Transmission", "Owner_Type", "Mileage", "Engine", "Power", "Seats"]
         missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns:
@@ -131,11 +129,17 @@ def batch_predict():
             if col in df.columns:
                 df[col] = encoders[col].transform(df[[col]])
 
-        # Prepare numerical features
+        # Prediction Logic
         df["Predicted Price (INR Lakhs)"] = (
             15.0 + (df["Year"] - 2010) * 0.5 - (df["Kilometers_Driven"] / 10000 * 0.2)
         )
         df["Predicted Price (INR Lakhs)"] = df["Predicted Price (INR Lakhs)"].clip(lower=1.0)
+
+        # ✅ Reverse One-Hot Encoding to Restore Original Categories
+        for col in categorical_columns:
+            category_names = encoders[col].categories_[0]
+            df[col] = encoders[col].inverse_transform(df[encoders[col].get_feature_names_out([col])])
+            df.drop(columns=encoders[col].get_feature_names_out([col]), inplace=True)  # Remove one-hot columns
 
         # Convert DataFrame to CSV
         output = io.StringIO()
