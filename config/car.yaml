@@ -1,0 +1,18 @@
+app:
+  debug: true
+  host: "0.0.0.0"
+  port: 5000
+  template_folder: "../templates"
+
+model:
+  path: "artifacts/used_car_price_model.joblib"
+  fallback_path: "artifacts/used_car_price_model.pkl"
+
+encoding:
+  categorical_columns: ["Brand_Model", "Location", "Fuel_Type", "Transmission", "Owner_Type"]
+  common_values:
+    Brand_Model: ["Maruti Swift Dzire VDI", "Hyundai i20 Sportz", "Honda City", "Toyota Innova", "Maruti Wagon R LXI CNG"]
+    Location: ["Mumbai", "Delhi", "Bangalore", "Chennai", "Kolkata"]
+    Fuel_Type: ["Petrol", "Diesel", "CNG", "LPG", "Electric"]
+    Transmission: ["Manual", "Automatic"]
+    Owner_Type: ["First", "Second", "Third", "Fourth"]
