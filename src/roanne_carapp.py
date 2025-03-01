@@ -10,14 +10,14 @@ from omegaconf import DictConfig
 from hydra.core.global_hydra import GlobalHydra
 import io
 
-app = Flask(__name__, template_folder="../templates")
+app = Flask(__name__, template_folder="templates")
 
 # Ensure joblib does not cache to restricted directories
 os.environ["JOBLIB_TEMP_FOLDER"] = "/tmp"
 
 # Initialize Hydra only if it's not already initialized
 if not GlobalHydra.instance().is_initialized():
-    hydra.initialize(config_path="../config")
+    hydra.initialize(config_path="config")
 
 cfg = hydra.compose(config_name="car")
 
@@ -47,7 +47,7 @@ for col in categorical_columns:
 
 @app.route('/')
 def home():
-    return render_template('roanne_car.html')
+    return render_template('roanne_car.html', predicted_price=None)
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -68,10 +68,6 @@ def predict():
 
         df = pd.DataFrame([user_input])
 
-        # Encode categorical features
-        for col in categorical_columns:
-            df[col] = encoders[col].transform(df[[col]])
-
         # Prediction Logic
         base_value = 15.0  # Base value in lakhs
         year_factor = (df["Year"][0] - 2010) * 0.5
@@ -79,14 +75,14 @@ def predict():
         prediction = base_value + year_factor - mileage_discount
         prediction = max(prediction, 1.0)
 
-        return jsonify({"Predicted Price (INR Lakhs)": round(prediction, 2)})
+        return render_template("roanne_car.html", predicted_price=round(prediction, 2))
 
     except Exception as e:
         import traceback
         print(traceback.format_exc())
-        return jsonify({"error": str(e)})
+        return render_template("roanne_car.html", predicted_price="Error occurred")
 
-#  Corrected Batch Prediction API (Now Returns Original Categories Instead of 0/1)
+#  Corrected Batch Prediction API
 @app.route('/batch_predict', methods=['POST'])
 def batch_predict():
     try:
@@ -97,10 +93,9 @@ def batch_predict():
         if file.filename == '':
             return jsonify({"error": "No selected file"}), 400
 
-        # Read CSV file
         df = pd.read_csv(file)
 
-        # Remove 'Price (INR Lakhs)' column if it exists
+        # Remove 'Price' column if it exists
         if 'Price (INR Lakhs)' in df.columns:
             df = df.drop(columns=['Price (INR Lakhs)'])
 
@@ -111,14 +106,8 @@ def batch_predict():
             return jsonify({"error": f"Missing columns: {missing_columns}"}), 400
 
         # Encode categorical features
-        one_hot_encoded_cols = {}  # Dictionary to store column names before encoding
         for col in categorical_columns:
-            if col in df.columns:
-                transformed = encoders[col].transform(df[[col]])
-                feature_names = encoders[col].get_feature_names_out([col])
-                df = df.drop(columns=[col])  # Remove original column
-                df = pd.concat([df, pd.DataFrame(transformed, columns=feature_names)], axis=1)
-                one_hot_encoded_cols[col] = feature_names  # Store the mapping
+            df[col] = encoders[col].transform(df[[col]])
 
         # Prediction Logic
         df["Predicted Price (INR Lakhs)"] = (
@@ -127,14 +116,13 @@ def batch_predict():
         df["Predicted Price (INR Lakhs)"] = df["Predicted Price (INR Lakhs)"].clip(lower=1.0)
 
         # Convert Encoded Columns Back to Original Categories
-        for col, feature_names in one_hot_encoded_cols.items():
+        for col in categorical_columns:
             try:
-                df[col] = encoders[col].inverse_transform(df[feature_names])
-                df.drop(columns=feature_names, inplace=True)  # Remove one-hot encoded columns
+                df[col] = encoders[col].inverse_transform(df[encoders[col].get_feature_names_out([col])])
+                df.drop(columns=encoders[col].get_feature_names_out([col]), inplace=True)
             except Exception as e:
-                print(f"Error decoding {col}: {e}")  # Debugging message
+                print(f"Error decoding {col}: {e}")
 
-        # Ensure CSV is Sent as a File (Not JSON)
         output = io.StringIO()
         df.to_csv(output, index=False)
         output.seek(0)
