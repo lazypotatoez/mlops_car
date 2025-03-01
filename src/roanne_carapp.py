@@ -10,14 +10,14 @@ from omegaconf import DictConfig
 from hydra.core.global_hydra import GlobalHydra
 import io
 
-app = Flask(__name__, template_folder="templates")
+app = Flask(__name__, template_folder="../templates")
 
 # Ensure joblib does not cache to restricted directories
 os.environ["JOBLIB_TEMP_FOLDER"] = "/tmp"
 
-# Initialize Hydra only if it's not already initialized
+# ✅ FIX: Set Hydra to look in the correct config folder
 if not GlobalHydra.instance().is_initialized():
-    hydra.initialize(config_path="config")
+    hydra.initialize(config_path="../config", version_base=None)
 
 cfg = hydra.compose(config_name="car")
 
@@ -82,7 +82,6 @@ def predict():
         print(traceback.format_exc())
         return render_template("roanne_car.html", predicted_price="Error occurred")
 
-#  Corrected Batch Prediction API
 @app.route('/batch_predict', methods=['POST'])
 def batch_predict():
     try:
@@ -105,7 +104,6 @@ def batch_predict():
         if missing_columns:
             return jsonify({"error": f"Missing columns: {missing_columns}"}), 400
 
-        # Encode categorical features
         for col in categorical_columns:
             df[col] = encoders[col].transform(df[[col]])
 
@@ -115,7 +113,6 @@ def batch_predict():
         )
         df["Predicted Price (INR Lakhs)"] = df["Predicted Price (INR Lakhs)"].clip(lower=1.0)
 
-        # Convert Encoded Columns Back to Original Categories
         for col in categorical_columns:
             try:
                 df[col] = encoders[col].inverse_transform(df[encoders[col].get_feature_names_out([col])])
