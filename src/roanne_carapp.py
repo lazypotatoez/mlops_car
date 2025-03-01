@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
 import pandas as pd
 import os
 import joblib
@@ -8,8 +8,8 @@ import pickle
 import hydra
 from omegaconf import DictConfig
 from hydra.core.global_hydra import GlobalHydra
+import io
 
-# Define Flask app globally so Gunicorn can recognize it
 app = Flask(__name__, template_folder="../templates")
 
 # Ensure joblib does not cache to restricted directories
@@ -52,7 +52,6 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
-        # Gather user input
         user_input = {
             "Brand_Model": request.form['brand_model'],
             "Location": request.form['location'],
@@ -67,7 +66,6 @@ def predict():
             "Seats": int(request.form['seats'])
         }
 
-        # Create a base DataFrame
         df = pd.DataFrame([user_input])
 
         # Encode categorical features
@@ -94,9 +92,60 @@ def predict():
         year_factor = (user_input["Year"] - 2010) * 0.5
         mileage_discount = user_input["Kilometers_Driven"] / 10000 * 0.2
         prediction = base_value + year_factor - mileage_discount
-        prediction = max(prediction, 1.0)  # Minimum price of 1 lakh
+        prediction = max(prediction, 1.0)
 
         return jsonify({"Predicted Price (INR Lakhs)": round(prediction, 2)})
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)})
+
+# ✅ NEW: Batch Prediction API
+@app.route('/batch_predict', methods=['POST'])
+def batch_predict():
+    try:
+        # Check if a file was uploaded
+        if 'file' not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No selected file"}), 400
+
+        # Read the uploaded CSV
+        df = pd.read_csv(file)
+
+        # Remove 'price' column if it exists
+        if 'price' in df.columns:
+            df = df.drop(columns=['price'])
+
+        # Check if required columns exist
+        required_columns = ["Brand_Model", "Location", "Year", "Kilometers_Driven", "Fuel_Type", "Transmission", "Owner_Type", "Mileage", "Engine", "Power", "Seats"]
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            return jsonify({"error": f"Missing columns: {missing_columns}"}), 400
+
+        # Encode categorical features
+        for col in categorical_columns:
+            if col in df.columns:
+                df[col] = encoders[col].transform(df[[col]])
+
+        # Prepare numerical features
+        df["Predicted Price (INR Lakhs)"] = (
+            15.0 + (df["Year"] - 2010) * 0.5 - (df["Kilometers_Driven"] / 10000 * 0.2)
+        )
+        df["Predicted Price (INR Lakhs)"] = df["Predicted Price (INR Lakhs)"].clip(lower=1.0)
+
+        # Convert DataFrame to CSV
+        output = io.StringIO()
+        df.to_csv(output, index=False)
+        output.seek(0)
+
+        return send_file(io.BytesIO(output.getvalue().encode()), 
+                         mimetype="text/csv", 
+                         as_attachment=True, 
+                         download_name="predictions.csv")
 
     except Exception as e:
         import traceback
